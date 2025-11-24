@@ -1,2 +1,3 @@
-# immutable-releases-sandbox
-Sandbox for testing refactoring of my NuGet publishing to use immutable releases
+# Immutable Releases Sandbox
+
+Sandbox for testing refactoring of my NuGet publishing to use immutable releases.
