@@ -63,7 +63,7 @@ jobs:
     - name: Build and Package
       id: build
       shell: pwsh
-      run: dotnet pack
+      run: dotnet pack --configuration Release --include-symbols --include-source
 
     - name: Generate SBOM
       uses: anchore/sbom-action@fbfd9c6c189226748411491745178e0c2017392d # v0.20.10
@@ -204,12 +204,12 @@ jobs:
           });
 
           core.notice(`Created release ${release.name}: ${release.html_url}`);
-          return release.id;
+          return tag_name;
 
     - name: Attach files to the release
       shell: bash
       env:
         GH_TOKEN: ${{ secrets.COSTELLOBOT_TOKEN }}
-        RELEASE_ID: ${{ steps.create-release.outputs.result }}
+        RELEASE_TAG: ${{ steps.create-release.outputs.result }}
       run: |
-        gh release upload "${RELEASE_ID}" "dist/*" --clobber --repo "${GITHUB_REPOSITORY}"
+        gh release upload "${RELEASE_TAG}" "dist/*" --clobber --repo "${GITHUB_REPOSITORY}"
