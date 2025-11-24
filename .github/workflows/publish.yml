@@ -1,0 +1,56 @@
+name: publish
+
+on:
+  release:
+    types: [ published ]
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_GENERATE_ASPNET_CERTIFICATE: false
+  DOTNET_NOLOGO: true
+  DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: 1
+  FORCE_COLOR: 3
+  NUGET_XMLDOC_MODE: skip
+  TERM: xterm
+
+permissions: {}
+
+jobs:
+  publish-nuget:
+    runs-on: ubuntu-slim
+    if: github.event.repository.fork == false
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+
+    - name: Download the files attached to the release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --pattern "*" --output "${GITHUB_WORKSPACE}"
+
+    - name: Get the .NET SDK version to use for the release
+      id: get-dotnet-sdk-version
+      shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        gh api -H "Accept: application/vnd.github.v3.raw" "repos/${GITHUB_REPOSITORY}/contents/global.json?ref=${RELEASE_TAG}" | jq -r .sdk.version)
+        echo "dotnet-sdk-version=${dotnet_sdk_version}" >> "${GITHUB_OUTPUT}"
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+      with:
+        dotnet-version: ${{ steps.get-dotnet-sdk-version.outputs.dotnet-sdk-version }}
+
+    - name: Verify NuGet is installed
+      shell: bash
+      run: |
+        dotnet --version
+        dotnet nuget --version

@@ -1,0 +1,215 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ v* ]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_GENERATE_ASPNET_CERTIFICATE: false
+  DOTNET_NOLOGO: true
+  DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: 1
+  FORCE_COLOR: 3
+  NUGET_XMLDOC_MODE: skip
+  TERM: xterm
+
+permissions: {}
+
+jobs:
+  build:
+    name: ${{ matrix.os-name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+
+    outputs:
+      dotnet-sdk-version: ${{ steps.setup-dotnet.outputs.dotnet-version }}
+      dotnet-validate-version: ${{ steps.get-dotnet-tools-versions.outputs.dotnet-validate-version }}
+      nuget-package-validation-version: ${{ steps.get-dotnet-tools-versions.outputs.nuget-package-validation-version }}
+      package-names: ${{ steps.build.outputs.package-names }}
+      package-version: ${{ steps.build.outputs.package-version }}
+
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os-name: macos
+            runner: macos-latest
+          - os-name: linux
+            runner: ubuntu-latest
+          - os-name: windows
+            runner: windows-latest
+
+    steps:
+
+    - name: Checkout code
+      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        filter: 'tree:0'
+        persist-credentials: false
+        show-progress: false
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+      id: setup-dotnet
+
+    - name: Build and Package
+      id: build
+      shell: pwsh
+      run: dotnet pack
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@fbfd9c6c189226748411491745178e0c2017392d # v0.20.10
+      if: runner.os == 'Windows'
+      with:
+        artifact-name: greeting.spdx.json
+        output-file: ./artifacts/greeting.spdx.json
+        path: ./artifacts/bin
+        upload-release-assets: false
+
+    - name: Attest artifacts
+      uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+      if: |
+        runner.os == 'Windows' &&
+        github.event.repository.fork == false &&
+        (github.ref_name == github.event.repository.default_branch || startsWith(github.ref, 'refs/tags/v'))
+      with:
+        subject-path: |
+          ./artifacts/publish/Greeter/release*/Greeter.dll
+          ./artifacts/package/release/*
+
+    - name: Publish artifacts
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      with:
+        name: artifacts-${{ matrix.os-name }}
+        path: ./artifacts
+
+    - name: Publish NuGet packages
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      with:
+        name: packages-${{ matrix.os-name }}
+        path: ./artifacts/package/release
+        if-no-files-found: error
+
+    - name: Get .NET tools versions
+      id: get-dotnet-tools-versions
+      shell: pwsh
+      run: |
+        $manifest = (Get-Content "./.config/dotnet-tools.json" | Out-String | ConvertFrom-Json)
+        $dotnetValidateVersion = $manifest.tools.'dotnet-validate'.version
+        $nugetPackageValidationVersion = $manifest.tools.'meziantou.framework.nugetpackagevalidation.tool'.version
+        "dotnet-validate-version=${dotnetValidateVersion}" >> ${env:GITHUB_OUTPUT}
+        "nuget-package-validation-version=${nugetPackageValidationVersion}" >> ${env:GITHUB_OUTPUT}
+
+  validate-packages:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Download packages
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      with:
+        name: packages-windows
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+      with:
+        dotnet-version: ${{ needs.build.outputs.dotnet-sdk-version }}
+
+    - name: Install NuGet package validation tools
+      shell: pwsh
+      env:
+        DOTNET_VALIDATE_VERSION: ${{ needs.build.outputs.dotnet-validate-version }}
+        NUGET_PACKAGE_VALIDATION_VERSION: ${{ needs.build.outputs.nuget-package-validation-version }}
+      run: |
+        dotnet tool install --global dotnet-validate --version ${env:DOTNET_VALIDATE_VERSION} --allow-roll-forward
+        dotnet tool install --global Meziantou.Framework.NuGetPackageValidation.Tool --version ${env:NUGET_PACKAGE_VALIDATION_VERSION} --allow-roll-forward
+
+    - name: Validate NuGet packages
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $packages = Get-ChildItem -Filter "*.nupkg" | ForEach-Object { $_.FullName }
+        $invalidPackages = 0
+        foreach ($package in $packages) {
+          $isValid = $true
+          dotnet validate package local $package
+          if ($LASTEXITCODE -ne 0) {
+            $isValid = $false
+          }
+          meziantou.validate-nuget-package $package --github-token ${env:GH_TOKEN}
+          if ($LASTEXITCODE -ne 0) {
+            $isValid = $false
+          }
+          if (-Not $isValid) {
+            $invalidPackages++
+          }
+        }
+        if ($invalidPackages -gt 0) {
+          Write-Output "::error::$invalidPackages NuGet package(s) failed validation."
+          exit 1
+        }
+
+  draft-release:
+    needs: [ build, validate-packages ]
+    runs-on: ubuntu-latest
+    if: |
+      github.event.repository.fork == false &&
+      startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+
+    - name: Download packages
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      with:
+        name: packages-windows
+        path: ./dist
+
+    - name: Download SBOM
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      with:
+        name: greeting.spdx.json
+        path: ./dist
+
+    - name: Create release
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+      id: create-release
+      env:
+        VERSION: ${{ needs.build.outputs.package-version }}
+      with:
+        github-token: ${{ secrets.COSTELLOBOT_TOKEN }}
+        result-encoding: string
+        script: |
+          const { repo, owner } = context.repo;
+          const version = process.env.VERSION;
+          const tag_name = `v${version}`;
+          const name = tag_name;
+
+          const { data: release } = await github.rest.repos.createRelease({
+            owner,
+            repo,
+            tag_name,
+            name,
+            draft: true,
+            generate_release_notes: true,
+            prerelease: version.includes('-'),
+          });
+
+          core.notice(`Created release ${release.name}: ${release.html_url}`);
+          return release.id;
+
+    - name: Attach files to the release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.COSTELLOBOT_TOKEN }}
+        RELEASE_ID: ${{ steps.create-release.outputs.result }}
+      run: |
+        gh release upload "${RELEASE_ID}" "dist/*" --clobber --repo "${GITHUB_REPOSITORY}"

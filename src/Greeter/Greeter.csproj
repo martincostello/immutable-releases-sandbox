@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="package-icon.png" Pack="True" PackagePath="" />
+    <None Include="package-readme.md" Pack="True" PackagePath="" />
+  </ItemGroup>
+</Project>
