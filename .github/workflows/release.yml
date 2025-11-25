@@ -45,17 +45,11 @@ jobs:
           }
           "version=${version}" >> ${env:GITHUB_OUTPUT}
 
-      - name: Install GPG
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gnupg2 pinentry-curses
-
       - name: Import GPG private key
         env:
           GPG_PASSPHRASE: ${{ secrets.COSTELLOBOT_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY: ${{ secrets.COSTELLOBOT_GPG_PRIVATE_KEY }}
         run: |
-          set -e
           export GNUPGHOME="$(mktemp -d)"
           chmod 700 "${GNUPGHOME}"
           echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
