@@ -76,6 +76,8 @@ jobs:
       - name: Create and push tag
         env:
           GNUPGHOME: ${{ env.GNUPGHOME }}
+          GPG_KEY_ID: ${{ secrets.COSTELLOBOT_GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.COSTELLOBOT_GPG_PASSPHRASE }}
           VERSION: ${{ steps.get-version.outputs.version }}
         run: |
           TAG="v${VERSION}"
