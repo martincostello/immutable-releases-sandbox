@@ -67,8 +67,8 @@ jobs:
       uses: anchore/sbom-action@fbfd9c6c189226748411491745178e0c2017392d # v0.20.10
       if: runner.os == 'Windows'
       with:
-        artifact-name: greeting.spdx.json
-        output-file: ./artifacts/greeting.spdx.json
+        artifact-name: greeter.spdx.json
+        output-file: ./artifacts/greeter.spdx.json
         path: ./artifacts/bin
         upload-release-assets: false
 
@@ -175,7 +175,7 @@ jobs:
     - name: Download SBOM
       uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
       with:
-        name: greeting.spdx.json
+        name: greeter.spdx.json
         path: ./dist
 
     - name: Generate checksums
@@ -205,11 +205,11 @@ jobs:
         echo "${GPG_PRIVATE_KEY}" | gpg --import --batch --yes --passphrase "${GPG_PASSPHRASE}"
         find "${ASSETS_PATH}" -type f -name '*' | while read -r fname; do
           echo "Signing ${fname}"
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --detach-sig "${fname}"
+          echo "${GPG_PASSPHRASE}" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --detach-sig "${fname}"
           gpg --verify "${fname}.sig" "${fname}"
         done
 
-    - name: Create release
+    - name: Draft release
       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
       with:
         github-token: ${{ secrets.COSTELLOBOT_TOKEN }}
@@ -228,7 +228,7 @@ jobs:
             prerelease: tag_name.includes('-'),
           });
 
-          core.notice(`Created release ${release.name}: ${release.html_url}`);
+          core.notice(`Drafted release ${release.name}: ${release.html_url}`);
 
     - name: Attach files to the release
       shell: bash
