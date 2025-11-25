@@ -40,7 +40,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --pattern "*"
+        gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --pattern ".*nupkg"
 
     - name: Get the .NET SDK version to use for the release
       id: get-dotnet-sdk-version
