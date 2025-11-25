@@ -82,4 +82,4 @@ jobs:
           VERSION: ${{ steps.get-version.outputs.version }}
         run: |
           TAG="v${VERSION}"
-          git tag "${TAG}" && git push origin "refs/tags/$TAG"
+          git tag "${TAG}" -m "Release ${TAG}" && git push origin "refs/tags/$TAG"
