@@ -79,4 +79,8 @@ jobs:
           VERSION: ${{ steps.get-version.outputs.version }}
         run: |
           TAG="v${VERSION}"
-          git tag "${TAG}" -m "Release ${TAG}" && git push origin "refs/tags/$TAG"
+          echo "${GPG_PASSPHRASE}" | \
+            gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
+            --local-user "${GPG_KEY_ID}" \
+            --output /dev/null --sign
+          git tag -s "${TAG}" -m "Release ${TAG}" && git push origin "refs/tags/$TAG"
