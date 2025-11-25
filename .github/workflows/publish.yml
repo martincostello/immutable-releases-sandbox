@@ -26,6 +26,10 @@ jobs:
     runs-on: ubuntu-slim
     if: github.event.repository.fork == false
 
+    defaults:
+      run:
+        shell: bash
+
     env:
       RELEASE_TAG: ${{ inputs.version || github.event.release.tag_name }}
 
@@ -36,7 +40,6 @@ jobs:
     steps:
 
     - name: Download the files attached to the release
-      shell: bash
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -44,7 +47,6 @@ jobs:
 
     - name: Get the .NET SDK version to use for the release
       id: get-dotnet-sdk-version
-      shell: bash
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -56,10 +58,44 @@ jobs:
       with:
         dotnet-version: ${{ steps.get-dotnet-sdk-version.outputs.dotnet-sdk-version }}
 
+    - name: Get NuGet package information
+      id: get-packages
+      run: |
+        packages="$(find . -type f -name '*.nupkg' -printf '%f\0' | sort -z | tr '\0' ',' | sed 's/,$/\n/')"
+        echo "package-names=${packages}" >> "${GITHUB_OUTPUT}"
+        echo "package-version=${RELEASE_TAG#v}" >> "${GITHUB_OUTPUT}"
+
     - name: Verify NuGet is installed
-      shell: bash
       run: |
         dotnet --version
         dotnet nuget --version
 
-    # TODO This is where GitHub publishing would actually happen, and then the repository_dispatch event triggered
+    - name: NuGet log in
+      uses: NuGet/login@d22cc5f58ff5b88bf9bd452535b4335137e24544 # v1.1.0
+      id: nuget-login
+      if: false
+      with:
+        user: ${{ secrets.NUGET_USER }}
+
+    - name: Push NuGet packages to NuGet.org
+      if: false
+      shell: bash
+      env:
+        API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        PACKAGE_VERSION: ${{ needs.get-packages.outputs.package-version }}
+        SOURCE: https://api.nuget.org/v3/index.json
+      run: dotnet nuget push "*.nupkg" --api-key "${API_KEY}" --skip-duplicate --source "${SOURCE}" && echo "::notice title=nuget.org::Published version ${PACKAGE_VERSION} to NuGet.org."
+
+    - name: Publish nuget_packages_published
+      uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+      if: false
+      with:
+        event-type: nuget_packages_published
+        repository: ${{ github.repository_owner }}/github-automation
+        token: ${{ secrets.COSTELLOBOT_TOKEN }}
+        client-payload: |-
+          {
+            "repository": "${{ github.repository }}",
+            "packages": "${{ needs.get-packages.outputs.package-names }}",
+            "version": "${{ needs.get-packages.outputs.package-version }}"
+          }
