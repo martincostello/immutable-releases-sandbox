@@ -48,7 +48,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh api -H "Accept: application/vnd.github.v3.raw" "repos/${GITHUB_REPOSITORY}/contents/global.json?ref=${RELEASE_TAG}" | jq -r .sdk.version)
+        dotnet_sdk_version="$(gh api -H "Accept: application/vnd.github.v3.raw" "repos/${GITHUB_REPOSITORY}/contents/global.json?ref=${RELEASE_TAG}" | jq -r .sdk.version)"
         echo "dotnet-sdk-version=${dotnet_sdk_version}" >> "${GITHUB_OUTPUT}"
 
     - name: Setup .NET SDK
