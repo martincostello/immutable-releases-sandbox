@@ -60,7 +60,7 @@ jobs:
           echo '#!/bin/bash' >> "${gpg_script}"
           echo 'gpg --batch --pinentry-mode=loopback --passphrase "${GPG_KEY_PASSPHRASE}" $@' >> "${gpg_script}"
           chmod +x "${gpg_script}"
-          "gpg-script=${gpg_script}" >> "${GITHUB_OUTPUT}"
+          echo "gpg-script=${gpg_script}" >> "${GITHUB_OUTPUT}"
 
       - name: Configure Git
         shell: bash
