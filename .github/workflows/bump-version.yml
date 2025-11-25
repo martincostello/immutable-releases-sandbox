@@ -54,7 +54,9 @@ jobs:
           $versionPrefix.InnerText = $updatedVersion
 
           $packageValidationBaselineVersion = $xml.SelectSingleNode('Project/PropertyGroup/PackageValidationBaselineVersion')
-          $packageValidationBaselineVersion.InnerText = $publishedVersion
+          if ($null -ne $packageValidationBaselineVersion) {
+            $packageValidationBaselineVersion.InnerText = $publishedVersion
+          }
 
           $settings = New-Object System.Xml.XmlWriterSettings
           $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
