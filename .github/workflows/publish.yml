@@ -54,3 +54,5 @@ jobs:
       run: |
         dotnet --version
         dotnet nuget --version
+
+    # TODO This is where GitHub publishing would actually happen, and then the repository_dispatch event triggered
