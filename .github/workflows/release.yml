@@ -69,6 +69,7 @@ jobs:
           git config user.name ${env:GIT_COMMIT_USER_NAME} | Out-Null
           git config user.signingkey ${env:GPG_KEY_ID} | Out-Null
           git config commit.gpgsign true
+          git config tag.gpgsign true
           git config gpg.program gpg
 
       - name: Create and push tag
