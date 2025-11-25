@@ -47,7 +47,6 @@ jobs:
 
       - name: Import GPG private key
         env:
-          GPG_PASSPHRASE: ${{ secrets.COSTELLOBOT_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY: ${{ secrets.COSTELLOBOT_GPG_PRIVATE_KEY }}
         run: |
           echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
@@ -79,6 +78,7 @@ jobs:
 
       - name: Create and push tag
         env:
+          GPG_PASSPHRASE: ${{ secrets.COSTELLOBOT_GPG_PASSPHRASE }}
           VERSION: ${{ steps.get-version.outputs.version }}
         run: |
           TAG="v${VERSION}"
