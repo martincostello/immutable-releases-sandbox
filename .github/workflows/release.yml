@@ -69,12 +69,12 @@ jobs:
           GPG_KEY_ID: ${{ secrets.COSTELLOBOT_GPG_KEY_ID }}
           GPG_SCRIPT: ${{ steps.create-gpg-script.outputs.gpg-script }}
         run: |
-          git config commit.gpgsign true
-          git config gpg.program "${GPG_SCRIPT}"
-          git config tag.gpgsign true
-          git config user.email "${GIT_COMMIT_USER_EMAIL}"
-          git config user.name "${GIT_COMMIT_USER_NAME}"
-          git config user.signingkey "${GPG_KEY_ID}"
+          git config --global commit.gpgsign true
+          git config --global gpg.program "${GPG_SCRIPT}"
+          git config --global tag.gpgsign true
+          git config --global user.email "${GIT_COMMIT_USER_EMAIL}"
+          git config --global user.name "${GIT_COMMIT_USER_NAME}"
+          git config --global user.signingkey "${GPG_KEY_ID}"
 
       - name: Create and push tag
         env:
