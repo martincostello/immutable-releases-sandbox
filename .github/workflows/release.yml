@@ -70,6 +70,7 @@ jobs:
           git config user.signingkey ${env:GPG_KEY_ID} | Out-Null
           git config commit.gpgsign true
           git config tag.gpgsign true
+          git config gpg.pinentry-mode loopback
           git config gpg.program gpg
 
       - name: Create and push tag
