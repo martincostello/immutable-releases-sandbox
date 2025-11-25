@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: ''
+      version:
+        description: 'The version to tag the release as'
+        required: false
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -29,10 +34,15 @@ jobs:
       - name: Get version
         id: get-version
         shell: pwsh
+        env:
+          VERSION: ${{ github.event.inputs.version }}
         run: |
-          $properties = Join-Path "." "Directory.Build.props"
-          $xml = [xml](Get-Content $properties)
-          $version = $xml.SelectSingleNode('Project/PropertyGroup/VersionPrefix').InnerText
+          $version = ${env:VERSION}
+          if (string::IsNullOrEmpty($version)) {
+            $properties = Join-Path "." "Directory.Build.props"
+            $xml = [xml](Get-Content $properties)
+            $version = $xml.SelectSingleNode('Project/PropertyGroup/VersionPrefix').InnerText
+          }
           "version=${version}" >> ${env:GITHUB_OUTPUT}
 
       - name: Configure Git
