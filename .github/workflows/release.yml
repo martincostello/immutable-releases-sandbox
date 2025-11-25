@@ -56,7 +56,7 @@ jobs:
         id: create-gpg-script
         shell: bash
         run: |
-          gpg_script="/${GITHUB_WORKSPACE}/gpg.sh"
+          gpg_script="${GITHUB_WORKSPACE}/gpg.sh"
           echo '#!/bin/bash' >> "${gpg_script}"
           echo 'gpg --batch --pinentry-mode=loopback --passphrase "${GPG_KEY_PASSPHRASE}" $@' >> "${gpg_script}"
           chmod +x "${gpg_script}"
