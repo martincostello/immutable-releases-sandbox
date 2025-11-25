@@ -38,7 +38,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version }}
         run: |
           $version = ${env:VERSION}
-          if (string::IsNullOrEmpty($version)) {
+          if ([string]::IsNullOrEmpty($version)) {
             $properties = Join-Path "." "Directory.Build.props"
             $xml = [xml](Get-Content $properties)
             $version = $xml.SelectSingleNode('Project/PropertyGroup/VersionPrefix').InnerText
