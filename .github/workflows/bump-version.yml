@@ -46,8 +46,7 @@ jobs:
 
           if (-Not [string]::IsNullOrEmpty(${env:NEXT_VERSION})) {
             $version = [System.Version]::new(${env:NEXT_VERSION}.TrimStart('v'))
-          } else {
-          elseif (-Not [string]::IsNullOrEmpty(${env:RELEASED_VERSION})) {
+          } elseif (-Not [string]::IsNullOrEmpty(${env:RELEASED_VERSION})) {
             $version = [System.Version]::new(${env:RELEASED_VERSION}.TrimStart('v'))
             $version = [System.Version]::new($version.Major, $version.Minor, $version.Build + 1)
           } else {
