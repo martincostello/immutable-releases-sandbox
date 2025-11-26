@@ -17,3 +17,6 @@ indent_size = 2
 
 [*.{cs,csx,vb,vbx}]
 charset = utf-8-bom
+
+[*.sh]
+end_of_line = lf

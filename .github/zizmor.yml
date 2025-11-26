@@ -5,5 +5,7 @@ rules:
     disable: true
   dependabot-cooldown:
     disable: true
+  if-cond:
+    disable: true
   undocumented-permissions:
     disable: true
