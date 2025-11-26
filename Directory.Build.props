@@ -2,6 +2,6 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <UseArtifactsOutput>true</UseArtifactsOutput>
-    <VersionPrefix>1.0.8</VersionPrefix>
+    <VersionPrefix>1.0.9</VersionPrefix>
   </PropertyGroup>
 </Project>
