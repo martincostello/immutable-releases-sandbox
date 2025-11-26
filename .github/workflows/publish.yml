@@ -69,33 +69,3 @@ jobs:
       run: |
         dotnet --version
         dotnet nuget --version
-
-    - name: NuGet log in
-      uses: NuGet/login@d22cc5f58ff5b88bf9bd452535b4335137e24544 # v1.1.0
-      id: nuget-login
-      if: false
-      with:
-        user: ${{ secrets.NUGET_USER }}
-
-    - name: Push NuGet packages to NuGet.org
-      if: false
-      shell: bash
-      env:
-        API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-        PACKAGE_VERSION: ${{ steps.get-packages.outputs.package-version }}
-        SOURCE: https://api.nuget.org/v3/index.json
-      run: dotnet nuget push "*.nupkg" --api-key "${API_KEY}" --skip-duplicate --source "${SOURCE}" && echo "::notice title=nuget.org::Published version ${PACKAGE_VERSION} to NuGet.org."
-
-    - name: Publish nuget_packages_published
-      uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
-      if: false
-      with:
-        event-type: nuget_packages_published
-        repository: ${{ github.repository_owner }}/github-automation
-        token: ${{ secrets.COSTELLOBOT_TOKEN }}
-        client-payload: |-
-          {
-            "repository": "${{ github.repository }}",
-            "packages": "${{ steps.get-packages.outputs.package-names }}",
-            "version": "${{ steps.get-packages.outputs.package-version }}"
-          }
