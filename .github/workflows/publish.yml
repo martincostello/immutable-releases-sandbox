@@ -55,6 +55,7 @@ jobs:
       run: |
         sha256sum "./checksums.txt" --check || exit 1
         for pkg in *.*nupkg; do
+          echo "Verifying ${pkg}"
           gpg --verify "${pkg}.sig" "${pkg}" || exit 1
         done
 
