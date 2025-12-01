@@ -60,7 +60,7 @@ jobs:
           echo "Verifying signature for ${pkg}"
           gpg --verify "${pkg}.sig" "${pkg}" || exit 1
           echo "Verifying attestation for ${pkg}"
-          gh attestation verify --owner "${GITHUB_REPOSITORY_OWNER}" "${pkg}" || exit 1
+          gh attestation verify --repo "${GITHUB_REPOSITORY}" "${pkg}" || exit 1
         done
 
     - name: Get the .NET SDK version to use for the release
