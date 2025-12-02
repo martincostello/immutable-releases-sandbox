@@ -34,6 +34,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.version || github.event.release.tag_name }}
 
     permissions:
+      attestations: read
       contents: read
       id-token: write
 
