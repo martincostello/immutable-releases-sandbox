@@ -21,6 +21,10 @@ jobs:
       group: '${{ github.workflow }}-bump'
       cancel-in-progress: false
 
+    environment:
+      name: release
+      deployment: false
+
     steps:
 
       - name: Checkout code
@@ -215,6 +219,9 @@ jobs:
       group: '${{ github.workflow }}-milestone'
       cancel-in-progress: false
 
+    permissions:
+      issues: write
+
     steps:
 
       - name: Close milestone
@@ -223,7 +230,7 @@ jobs:
           RELEASE_DATE: ${{ github.event.release.published_at }}
           RELEASE_VERSION: ${{ github.event.release.tag_name }}
         with:
-          github-token: ${{ secrets.COSTELLOBOT_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { repo, owner } = context.repo;
 
