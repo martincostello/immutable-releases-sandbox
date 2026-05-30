@@ -20,6 +20,10 @@ jobs:
   release:
     runs-on: [ ubuntu-latest ]
 
+    environment:
+      name: release
+      deployment: false
+
     steps:
 
       - name: Checkout code
