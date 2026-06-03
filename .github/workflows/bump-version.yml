@@ -119,6 +119,8 @@ jobs:
             throw "Failed to check whether branch '${branchName}' exists."
           }
 
+          $baseSha = ${env:CHECKOUT_COMMIT}
+
           $filePath = "Directory.Build.props"
           $currentFile = gh api "repos/${env:GITHUB_REPOSITORY}/contents/${filePath}?ref=${baseSha}" | ConvertFrom-Json
           $currentSha = $currentFile.sha
@@ -133,7 +135,7 @@ jobs:
 
           @{
             ref = "refs/heads/${branchName}"
-            sha = ${env:CHECKOUT_COMMIT}
+            sha = $baseSha
           } | ConvertTo-Json -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/refs" --input -
 
           if (${env:TOKEN_TYPE} -eq "app") {
