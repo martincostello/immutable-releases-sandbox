@@ -98,7 +98,6 @@ jobs:
         id: push-changes
         shell: pwsh
         env:
-          APP_ID: ${{ steps.get-github-token.outputs.app-id }}
           APP_SLUG: ${{ steps.get-github-token.outputs.app-slug }}
           CHECKOUT_COMMIT: ${{ steps.checkout-code.outputs.commit }}
           GH_TOKEN: ${{ steps.get-github-token.outputs.token }}
@@ -125,7 +124,8 @@ jobs:
           $fileFullPath = Join-Path ${env:GITHUB_WORKSPACE} $filePath
           if (${env:TOKEN_TYPE} -eq "app") {
             $gitUserName = "${env:APP_SLUG}[bot]"
-            $gitUserEmail = "${env:APP_ID}+${gitUserName}@users.noreply.github.com"
+            $gitUserId = gh api "users/${gitUserName}" --jq '.id'
+            $gitUserEmail = "${gitUserId}+${gitUserName}@users.noreply.github.com"
           } else {
             $identity = gh api "user" | ConvertFrom-Json
             $gitUserName = $identity.login
