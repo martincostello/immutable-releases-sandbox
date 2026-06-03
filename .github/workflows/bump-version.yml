@@ -38,6 +38,7 @@ jobs:
           profile-name: write
 
       - name: Checkout code
+        id: checkout-code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
@@ -99,15 +100,14 @@ jobs:
         env:
           APP_ID: ${{ steps.get-github-token.outputs.app-id }}
           APP_SLUG: ${{ steps.get-github-token.outputs.app-slug }}
-          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+          CHECKOUT_COMMIT: ${{ steps.checkout-code.outputs.commit }}
           GH_TOKEN: ${{ steps.get-github-token.outputs.token }}
           NEXT_VERSION: ${{ steps.bump-version.outputs.version }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
           TOKEN_TYPE: ${{ steps.get-github-token.outputs.token-type }}
         run: |
           $branchName = "bump-version-${env:NEXT_VERSION}"
 
-          gh api "repos/${env:GITHUB_REPOSITORY}/git/ref/heads/${branchName}" *> $null
+          $branchProbe = gh api "repos/${env:GITHUB_REPOSITORY}/git/ref/heads/${branchName}" 2>&1
 
           if ($LASTEXITCODE -eq 0) {
             Write-Output "::notice::Branch ${branchName} already exists."
@@ -115,16 +115,8 @@ jobs:
             exit 0
           }
 
-          $baseRef = "heads/${env:BASE_BRANCH}"
-          if (-Not [string]::IsNullOrEmpty(${env:RELEASE_TAG})) {
-            $baseRef = "tags/${env:RELEASE_TAG}"
-          }
-
-          $baseReference = gh api "repos/${env:GITHUB_REPOSITORY}/git/ref/${baseRef}" | ConvertFrom-Json
-          $baseSha = $baseReference.object.sha
-
-          if ($baseReference.object.type -eq "tag") {
-            $baseSha = gh api "repos/${env:GITHUB_REPOSITORY}/git/tags/${baseSha}" --jq ".object.sha"
+          if ((($branchProbe | Out-String) -notmatch 'HTTP 404')) {
+            throw "Failed to check whether branch '${branchName}' exists."
           }
 
           $filePath = "Directory.Build.props"
@@ -141,7 +133,7 @@ jobs:
 
           @{
             ref = "refs/heads/${branchName}"
-            sha = $baseSha
+            sha = ${env:CHECKOUT_COMMIT}
           } | ConvertTo-Json -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/refs" --input -
 
           if (${env:TOKEN_TYPE} -eq "app") {
