@@ -122,22 +122,7 @@ jobs:
           $baseSha = ${env:CHECKOUT_COMMIT}
 
           $filePath = "Directory.Build.props"
-          $currentFile = gh api "repos/${env:GITHUB_REPOSITORY}/contents/${filePath}?ref=${baseSha}" | ConvertFrom-Json
-          $currentSha = $currentFile.sha
-          $currentContent = $currentFile.content.Replace("`r", "").Replace("`n", "")
-          $localContent = [System.Convert]::ToBase64String(
-            [System.IO.File]::ReadAllBytes((Join-Path ${env:GITHUB_WORKSPACE} $filePath)))
-
-          if ($currentContent -eq $localContent) {
-            Write-Output "::error::No changes to commit."
-            exit 1
-          }
-
-          @{
-            ref = "refs/heads/${branchName}"
-            sha = $baseSha
-          } | ConvertTo-Json -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/refs" --input -
-
+          $fileFullPath = Join-Path ${env:GITHUB_WORKSPACE} $filePath
           if (${env:TOKEN_TYPE} -eq "app") {
             $gitUserName = "${env:APP_SLUG}[bot]"
             $gitUserEmail = "${env:APP_ID}+${gitUserName}@users.noreply.github.com"
@@ -150,13 +135,40 @@ jobs:
               $identity.email
             }
           }
+          $currentFile = gh api "repos/${env:GITHUB_REPOSITORY}/contents/${filePath}?ref=${baseSha}" | ConvertFrom-Json
+          $currentContent = $currentFile.content.Replace("`r", "").Replace("`n", "")
+          $localText = [System.IO.File]::ReadAllText($fileFullPath)
+          $localContent = [System.Convert]::ToBase64String(
+            [System.IO.File]::ReadAllBytes($fileFullPath))
+
+          if ($currentContent -eq $localContent) {
+            Write-Output "::error::No changes to commit."
+            exit 1
+          }
+
+          $baseCommit = gh api "repos/${env:GITHUB_REPOSITORY}/git/commits/${baseSha}" | ConvertFrom-Json
+          $newTree = @{
+            base_tree = $baseCommit.tree.sha
+            tree = @(
+              @{
+                path = $filePath
+                mode = "100644"
+                type = "blob"
+                content = $localText
+              }
+            )
+          } | ConvertTo-Json -Depth 10 -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/trees" --input - | ConvertFrom-Json
+
+          $newCommit = @{
+            message = "Bump version`n`nBump version to ${env:NEXT_VERSION} for the next release.`n`nSigned-off-by: ${gitUserName} <${gitUserEmail}>"
+            parents = @($baseSha)
+            tree = $newTree.sha
+          } | ConvertTo-Json -Depth 10 -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/commits" --input - | ConvertFrom-Json
 
           @{
-            message = "Bump version`n`nBump version to ${env:NEXT_VERSION} for the next release.`n`nSigned-off-by: ${gitUserName} <${gitUserEmail}>"
-            content = $localContent
-            sha = $currentSha
-            branch = $branchName
-          } | ConvertTo-Json -Depth 4 -Compress | gh api --method PUT "repos/${env:GITHUB_REPOSITORY}/contents/${filePath}" --input -
+            ref = "refs/heads/${branchName}"
+            sha = $newCommit.sha
+          } | ConvertTo-Json -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/refs" --input -
 
           "branch-name=${branchName}" >> ${env:GITHUB_OUTPUT}
           "updated-version=true" >> ${env:GITHUB_OUTPUT}
