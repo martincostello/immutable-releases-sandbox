@@ -137,7 +137,6 @@ jobs:
           }
           $currentFile = gh api "repos/${env:GITHUB_REPOSITORY}/contents/${filePath}?ref=${baseSha}" | ConvertFrom-Json
           $currentContent = $currentFile.content.Replace("`r", "").Replace("`n", "")
-          $localText = [System.IO.File]::ReadAllText($fileFullPath)
           $localContent = [System.Convert]::ToBase64String(
             [System.IO.File]::ReadAllBytes($fileFullPath))
 
@@ -146,31 +145,85 @@ jobs:
             exit 1
           }
 
-          $baseCommit = gh api "repos/${env:GITHUB_REPOSITORY}/git/commits/${baseSha}" | ConvertFrom-Json
-          $newTree = @{
-            base_tree = $baseCommit.tree.sha
-            tree = @(
-              @{
-                path = $filePath
-                mode = "100644"
-                type = "blob"
-                content = $localText
-              }
-            )
-          } | ConvertTo-Json -Depth 10 -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/trees" --input - | ConvertFrom-Json
-
-          $newCommit = @{
-            message = "Bump version`n`nBump version to ${env:NEXT_VERSION} for the next release.`n`nSigned-off-by: ${gitUserName} <${gitUserEmail}>"
-            parents = @($baseSha)
-            tree = $newTree.sha
-          } | ConvertTo-Json -Depth 10 -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/commits" --input - | ConvertFrom-Json
-
           @{
             ref = "refs/heads/${branchName}"
-            sha = $newCommit.sha
+            sha = $baseSha
           } | ConvertTo-Json -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/refs" --input -
 
+          $query = @'
+          mutation($input: CreateCommitOnBranchInput!) {
+            createCommitOnBranch(input: $input) {
+              commit {
+                oid
+              }
+            }
+          }
+          '@
+
+          $body = "Bump version to ${env:NEXT_VERSION} for the next release.`n`nSigned-off-by: ${gitUserName} <${gitUserEmail}>"
+          $payload = @{
+            query = $query
+            variables = @{
+              input = @{
+                branch = @{
+                  repositoryNameWithOwner = ${env:GITHUB_REPOSITORY}
+                  branchName = $branchName
+                }
+                expectedHeadOid = $baseSha
+                message = @{
+                  headline = "Bump version"
+                  body = $body
+                }
+                fileChanges = @{
+                  additions = @(
+                    @{
+                      path = $filePath
+                      contents = $localContent
+                    }
+                  )
+                }
+              }
+            }
+          } | ConvertTo-Json -Depth 20 -Compress
+
+          $headers = @{
+            Authorization = "Bearer ${env:GH_TOKEN}"
+            Accept = "application/vnd.github+json"
+          }
+
+          $result = Invoke-RestMethod `
+            -Method POST `
+            -Uri "https://api.github.com/graphql" `
+            -Headers $headers `
+            -ContentType "application/json" `
+            -Body $payload
+
+          if ($null -ne $result.errors) {
+            throw ($result.errors | ConvertTo-Json -Depth 20 -Compress)
+          }
+
+          $commitSha = $result.data.createCommitOnBranch.commit.oid
+          $verified = $false
+          $reason = "unknown"
+
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            $commit = gh api "repos/${env:GITHUB_REPOSITORY}/commits/${commitSha}" | ConvertFrom-Json
+            $verified = $commit.commit.verification.verified
+
+            if ($verified) {
+              break
+            }
+
+            $reason = $commit.commit.verification.reason
+            Start-Sleep -Seconds $attempt
+          }
+
+          if (-Not $verified) {
+            throw "GitHub did not verify commit '${commitSha}'. Last reason: ${reason}"
+          }
+
           "branch-name=${branchName}" >> ${env:GITHUB_OUTPUT}
+          "commit-sha=${commitSha}" >> ${env:GITHUB_OUTPUT}
           "updated-version=true" >> ${env:GITHUB_OUTPUT}
           "version=${env:NEXT_VERSION}" >> ${env:GITHUB_OUTPUT}
 
