@@ -202,28 +202,7 @@ jobs:
             throw ($result.errors | ConvertTo-Json -Depth 20 -Compress)
           }
 
-          $commitSha = $result.data.createCommitOnBranch.commit.oid
-          $verified = $false
-          $reason = "unknown"
-
-          for ($attempt = 1; $attempt -le 5; $attempt++) {
-            $commit = gh api "repos/${env:GITHUB_REPOSITORY}/commits/${commitSha}" | ConvertFrom-Json
-            $verified = $commit.commit.verification.verified
-
-            if ($verified) {
-              break
-            }
-
-            $reason = $commit.commit.verification.reason
-            Start-Sleep -Seconds $attempt
-          }
-
-          if (-Not $verified) {
-            throw "GitHub did not verify commit '${commitSha}'. Last reason: ${reason}"
-          }
-
           "branch-name=${branchName}" >> ${env:GITHUB_OUTPUT}
-          "commit-sha=${commitSha}" >> ${env:GITHUB_OUTPUT}
           "updated-version=true" >> ${env:GITHUB_OUTPUT}
           "version=${env:NEXT_VERSION}" >> ${env:GITHUB_OUTPUT}
 
