@@ -125,6 +125,9 @@ jobs:
           if (${env:TOKEN_TYPE} -eq "app") {
             $gitUserName = "${env:APP_SLUG}[bot]"
             $gitUserId = gh api "users/${gitUserName}" --jq '.id'
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($gitUserId)) {
+              throw "Failed to resolve user ID for GitHub app ${gitUserName}."
+            }
             $gitUserEmail = "${gitUserId}+${gitUserName}@users.noreply.github.com"
           } else {
             $identity = gh api "user" | ConvertFrom-Json
