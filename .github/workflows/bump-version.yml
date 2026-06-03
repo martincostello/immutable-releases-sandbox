@@ -97,6 +97,8 @@ jobs:
         id: push-changes
         shell: pwsh
         env:
+          APP_ID: ${{ steps.get-github-token.outputs.app-id }}
+          APP_SLUG: ${{ steps.get-github-token.outputs.app-slug }}
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ steps.get-github-token.outputs.token }}
           NEXT_VERSION: ${{ steps.bump-version.outputs.version }}
@@ -142,7 +144,10 @@ jobs:
             sha = $baseSha
           } | ConvertTo-Json -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/refs" --input -
 
-          if (${env:TOKEN_TYPE} -eq "user") {
+          if (${env:TOKEN_TYPE} -eq "app") {
+            $gitUserName = "${env:APP_SLUG}[bot]"
+            $gitUserEmail = "${env:APP_ID}+${gitUserName}@users.noreply.github.com"
+          } else {
             $identity = gh api "user" | ConvertFrom-Json
             $gitUserName = $identity.login
             $gitUserEmail = if ([string]::IsNullOrEmpty($identity.email)) {
@@ -150,14 +155,6 @@ jobs:
             } else {
               $identity.email
             }
-          } else {
-            $identity = gh api "app" | ConvertFrom-Json
-            $gitUserName = if ([string]::IsNullOrEmpty($identity.slug)) {
-              $identity.name
-            } else {
-              "$($identity.slug)[bot]"
-            }
-            $gitUserEmail = "$($identity.id)+$($identity.slug)[bot]@users.noreply.github.com"
           }
 
           @{
