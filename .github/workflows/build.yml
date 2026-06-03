@@ -39,11 +39,14 @@ jobs:
       matrix:
         include:
           - os-name: macos
-            runner: macos-latest
+            # renovate: datasource=github-runners depType=github-runner
+            runner: macos-26
           - os-name: linux
-            runner: ubuntu-latest
+            # renovate: datasource=github-runners depType=github-runner
+            runner: ubuntu-24.04
           - os-name: windows
-            runner: windows-latest
+            # renovate: datasource=github-runners depType=github-runner
+            runner: windows-2025
 
     steps:
 
@@ -109,7 +112,7 @@ jobs:
 
   validate-packages:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
 
     - name: Download packages
@@ -159,7 +162,7 @@ jobs:
 
   draft-release:
     needs: [ build, validate-packages ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: |
       github.event.repository.fork == false &&
       startsWith(github.ref, 'refs/tags/v')
@@ -219,7 +222,6 @@ jobs:
 
     - name: Get GitHub token for release
       id: get-release-token
-      # zizmor: ignore[ref-version-mismatch] False positive
       uses: martincostello/github-automation/actions/get-github-token@567bf2ea7958064af7863e6004a545a799f57982 # get-github-token/v4.2.0
       with:
         profile-name: release
