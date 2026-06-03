@@ -40,7 +40,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          persist-credentials: true # zizmor: ignore[artipacked] Needed to push commits
+          persist-credentials: false
           ref: ${{ github.event.release.tag_name || github.event.repository.default_branch }}
           show-progress: false
           token: ${{ steps.get-github-token.outputs.token }}
@@ -93,70 +93,79 @@ jobs:
 
           "version=${updatedVersion}" >> ${env:GITHUB_OUTPUT}
 
-      - name: Import GPG private key
-        shell: bash
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.COSTELLOBOT_GPG_PRIVATE_KEY }}
-        run: |
-          echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
-
-      - name: Set up GPG script
-        id: create-gpg-script
-        shell: bash
-        run: |
-          gpg_script="${RUNNER_TEMP}/${GITHUB_REPOSITORY_OWNER_ID}-${GITHUB_REPOSITORY_ID}-gpg.sh"
-          echo '#!/bin/bash' > "${gpg_script}"
-          # shellcheck disable=SC2016
-          echo 'gpg --batch --pinentry-mode=loopback --passphrase "${GPG_PASSPHRASE}" "$@"' >> "${gpg_script}"
-          chmod +x "${gpg_script}"
-          echo "gpg-script=${gpg_script}" >> "${GITHUB_OUTPUT}"
-
-      - name: Configure Git
-        shell: bash
-        env:
-          GIT_COMMIT_USER_EMAIL: ${{ vars.GIT_COMMIT_USER_EMAIL }}
-          GIT_COMMIT_USER_NAME: ${{ vars.GIT_COMMIT_USER_NAME }}
-          GPG_KEY_ID: ${{ secrets.COSTELLOBOT_GPG_KEY_ID }}
-          GPG_SCRIPT: ${{ steps.create-gpg-script.outputs.gpg-script }}
-        run: |
-          git config commit.gpgsign true
-          git config gpg.program "${GPG_SCRIPT}"
-          git config user.email "${GIT_COMMIT_USER_EMAIL}"
-          git config user.name "${GIT_COMMIT_USER_NAME}"
-          git config user.signingkey "${GPG_KEY_ID}"
-
       - name: Push changes to GitHub
         id: push-changes
         shell: pwsh
         env:
-          GIT_COMMIT_USER_EMAIL: ${{ vars.GIT_COMMIT_USER_EMAIL }}
-          GIT_COMMIT_USER_NAME: ${{ vars.GIT_COMMIT_USER_NAME }}
-          GPG_PASSPHRASE: ${{ secrets.COSTELLOBOT_GPG_PASSPHRASE }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ steps.get-github-token.outputs.token }}
           NEXT_VERSION: ${{ steps.bump-version.outputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          TOKEN_TYPE: ${{ steps.get-github-token.outputs.token-type }}
         run: |
-          $gitStatus = (git status --porcelain)
-
-          if ([string]::IsNullOrEmpty($gitStatus)) {
-            throw "No changes to commit."
-          }
-
-          git config color.diff always
-          git --no-pager diff
-
           $branchName = "bump-version-${env:NEXT_VERSION}"
 
-          git fetch origin --no-tags | Out-Null
-          git rev-parse --verify --quiet "remotes/origin/${branchName}" | Out-Null
+          gh api "repos/${env:GITHUB_REPOSITORY}/git/ref/heads/${branchName}" *> $null
 
           if ($LASTEXITCODE -eq 0) {
-            Write-Output "Branch ${branchName} already exists."
+            Write-Output "::notice::Branch ${branchName} already exists."
+            "updated-version=false" >> ${env:GITHUB_OUTPUT}
             exit 0
           }
 
-          git checkout -b $branchName
-          git add .
-          git commit -m "Bump version`n`nBump version to ${env:NEXT_VERSION} for the next release." -s
-          git push -u origin $branchName
+          $baseRef = "heads/${env:BASE_BRANCH}"
+          if (-Not [string]::IsNullOrEmpty(${env:RELEASE_TAG})) {
+            $baseRef = "tags/${env:RELEASE_TAG}"
+          }
+
+          $baseReference = gh api "repos/${env:GITHUB_REPOSITORY}/git/ref/${baseRef}" | ConvertFrom-Json
+          $baseSha = $baseReference.object.sha
+
+          if ($baseReference.object.type -eq "tag") {
+            $baseSha = gh api "repos/${env:GITHUB_REPOSITORY}/git/tags/${baseSha}" --jq ".object.sha"
+          }
+
+          $filePath = "Directory.Build.props"
+          $currentFile = gh api "repos/${env:GITHUB_REPOSITORY}/contents/${filePath}?ref=${baseSha}" | ConvertFrom-Json
+          $currentSha = $currentFile.sha
+          $currentContent = $currentFile.content.Replace("`r", "").Replace("`n", "")
+          $localContent = [System.Convert]::ToBase64String(
+            [System.IO.File]::ReadAllBytes((Join-Path ${env:GITHUB_WORKSPACE} $filePath)))
+
+          if ($currentContent -eq $localContent) {
+            Write-Output "::error::No changes to commit."
+            exit 1
+          }
+
+          @{
+            ref = "refs/heads/${branchName}"
+            sha = $baseSha
+          } | ConvertTo-Json -Compress | gh api --method POST "repos/${env:GITHUB_REPOSITORY}/git/refs" --input -
+
+          if (${env:TOKEN_TYPE} -eq "user") {
+            $identity = gh api "user" | ConvertFrom-Json
+            $gitUserName = $identity.login
+            $gitUserEmail = if ([string]::IsNullOrEmpty($identity.email)) {
+              "$($identity.id)+$($identity.login)@users.noreply.github.com"
+            } else {
+              $identity.email
+            }
+          } else {
+            $identity = gh api "app" | ConvertFrom-Json
+            $gitUserName = if ([string]::IsNullOrEmpty($identity.slug)) {
+              $identity.name
+            } else {
+              "$($identity.slug)[bot]"
+            }
+            $gitUserEmail = "$($identity.id)+$($identity.slug)[bot]@users.noreply.github.com"
+          }
+
+          @{
+            message = "Bump version`n`nBump version to ${env:NEXT_VERSION} for the next release.`n`nSigned-off-by: ${gitUserName} <${gitUserEmail}>"
+            content = $localContent
+            sha = $currentSha
+            branch = $branchName
+          } | ConvertTo-Json -Depth 4 -Compress | gh api --method PUT "repos/${env:GITHUB_REPOSITORY}/contents/${filePath}" --input -
 
           "branch-name=${branchName}" >> ${env:GITHUB_OUTPUT}
           "updated-version=true" >> ${env:GITHUB_OUTPUT}
