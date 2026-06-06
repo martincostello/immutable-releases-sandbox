@@ -27,6 +27,7 @@ jobs:
       deployment: false
 
     permissions:
+      contents: read
       id-token: write
 
     steps:
@@ -44,7 +45,6 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.release.tag_name || github.event.repository.default_branch }}
           show-progress: false
-          token: ${{ steps.get-github-token.outputs.token }}
 
       - name: Bump version
         id: bump-version
@@ -99,8 +99,8 @@ jobs:
         shell: pwsh
         env:
           APP_SLUG: ${{ steps.get-github-token.outputs.app-slug }}
+          APP_TOKEN: ${{ steps.get-github-token.outputs.token }}
           CHECKOUT_COMMIT: ${{ steps.checkout-code.outputs.commit }}
-          GH_TOKEN: ${{ steps.get-github-token.outputs.token }}
           NEXT_VERSION: ${{ steps.bump-version.outputs.version }}
           TOKEN_TYPE: ${{ steps.get-github-token.outputs.token-type }}
         run: |
@@ -190,7 +190,7 @@ jobs:
           } | ConvertTo-Json -Depth 20 -Compress
 
           $headers = @{
-            Authorization = "Bearer ${env:GH_TOKEN}"
+            Authorization = "Bearer ${env:APP_TOKEN}"
             Accept = "application/vnd.github+json"
           }
 
