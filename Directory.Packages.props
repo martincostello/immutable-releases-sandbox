@@ -1,5 +1,5 @@
 <Project>
   <ItemGroup>
-    <GlobalPackageReference Include="MartinCostello.BuildKit" Version="0.8.7" />
+    <GlobalPackageReference Include="MartinCostello.BuildKit" Version="0.8.9" />
   </ItemGroup>
 </Project>
